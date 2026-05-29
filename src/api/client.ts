@@ -1,28 +1,37 @@
-import { ApolloClient, InMemoryCache } from "@apollo/client";
-import { SchemaLink } from "@apollo/client/link/schema";
+import { execute, type DocumentNode } from "graphql";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { typeDefs } from "@/api/schema";
 import { resolvers } from "@/api/resolvers";
 
 /**
- * Standard Apollo Client setup.
+ * Lightweight GraphQL client.
  *
  * Because the challenge has no backend, we build an executable schema in the
- * browser (`makeExecutableSchema`) and wire it to Apollo via `SchemaLink`.
- * From the rest of the application's point of view this looks like a normal
- * Apollo Client connected to a remote GraphQL server — components use the
- * standard `useQuery` hook and `gql` template tag from `@apollo/client`.
+ * browser and run queries against it locally (using the reference `execute`
+ * function from the `graphql` package).
  *
- * `InMemoryCache` provides automatic response caching (deduping repeat
- * queries, sharing data between components, etc.).
+ * Components never call `request` directly — they go through feature hooks
+ * that wrap this in React Query, which gives us caching, request deduping,
+ * background refetching, and loading/error states for free.
+ *
+ * If a real GraphQL endpoint becomes available, only this file changes:
+ * swap the local `execute` for a `fetch` against the endpoint.
  */
 const schema = makeExecutableSchema({ typeDefs, resolvers });
 
-export const apolloClient = new ApolloClient({
-  link: new SchemaLink({ schema }),
-  cache: new InMemoryCache(),
-  defaultOptions: {
-    watchQuery: { fetchPolicy: "cache-and-network" },
-    query: { fetchPolicy: "cache-first" },
-  },
-});
+export async function request<TData>(
+  document: DocumentNode,
+  variables?: Record<string, unknown>,
+): Promise<TData> {
+  const result = await execute({
+    schema,
+    document,
+    variableValues: variables,
+  });
+
+  if (result.errors && result.errors.length > 0) {
+    // Surface the first error message so React Query treats it as a query failure.
+    throw new Error(result.errors[0].message);
+  }
+  return result.data as TData;
+}

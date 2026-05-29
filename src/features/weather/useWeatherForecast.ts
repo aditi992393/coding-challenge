@@ -1,4 +1,5 @@
-import { useQuery } from "@apollo/client/react";
+import { useQuery } from "@tanstack/react-query";
+import { request } from "@/api/client";
 import {
   GET_WEATHER_QUERY,
   type GetWeatherData,
@@ -9,27 +10,34 @@ import type { City } from "@/types";
 /**
  * Feature hook to retrieve a weather forecast for a selected city.
  *
- * - Skipped until a city is selected.
- * - Apollo caches by query variables; switching back to a previously selected
- *   city returns its forecast instantly.
+ * Caching behaviour (React Query):
+ *  - `queryKey` is `["weather", lat, lon]` — re-selecting a previously viewed
+ *    city returns the cached forecast immediately.
+ *  - `staleTime: 10 minutes` is more conservative than the city search because
+ *    weather actually changes; after 10 minutes the next access will refetch
+ *    in the background.
  */
 export function useWeatherForecast(city: City | null) {
-  const { data, loading, error, refetch } = useQuery<
-    GetWeatherData,
-    GetWeatherVars
-  >(GET_WEATHER_QUERY, {
-    variables: {
-      latitude: city?.latitude ?? 0,
-      longitude: city?.longitude ?? 0,
-      days: 7,
+  const result = useQuery({
+    queryKey: ["weather", city?.latitude, city?.longitude],
+    queryFn: async () => {
+      if (!city) throw new Error("City is required");
+      const data = await request<GetWeatherData>(GET_WEATHER_QUERY, {
+        latitude: city.latitude,
+        longitude: city.longitude,
+        days: 7,
+      } satisfies GetWeatherVars);
+      return data.getWeather;
     },
-    skip: !city,
+    enabled: city !== null,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 60,
   });
 
   return {
-    forecast: data?.getWeather,
-    loading,
-    error,
-    refetch,
+    forecast: result.data,
+    loading: result.isLoading,
+    error: result.error,
+    refetch: result.refetch,
   };
 }

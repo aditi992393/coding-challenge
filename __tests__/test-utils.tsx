@@ -1,19 +1,27 @@
-import { MockedProvider } from "@apollo/client/testing/react";
-import type { MockedResponse } from "@apollo/client/testing";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, type RenderOptions } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 
 /**
- * Test render helper that wraps the UI under test with Apollo's MockedProvider.
- * Pass an array of `MockedResponse` to simulate GraphQL query results without a real network.
+ * Test render helper that wraps the UI under test with a fresh QueryClient.
+ *
+ * - `retry: false` — failing queries should surface immediately in tests.
+ * - `gcTime: 0` / `staleTime: 0` — no cross-test cache leakage.
  */
-export function renderWithApollo(
+export function renderWithProviders(
   ui: ReactElement,
-  mocks: ReadonlyArray<MockedResponse> = [],
   options?: RenderOptions,
 ) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: 0 },
+    },
+  });
   const Wrapper = ({ children }: { children: ReactNode }) => (
-    <MockedProvider mocks={mocks}>{children}</MockedProvider>
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return render(ui, { wrapper: Wrapper, ...options });
+  return {
+    ...render(ui, { wrapper: Wrapper, ...options }),
+    queryClient: client,
+  };
 }

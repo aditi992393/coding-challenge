@@ -52,7 +52,7 @@ src/
 | Layer            | Responsibility                                              | Talks to                       |
 | ---------------- | ----------------------------------------------------------- | ------------------------------ |
 | `components/`    | Rendering, accessibility, interactions                      | `features/`, `store/`          |
-| `features/`      | Wraps GraphQL queries with Apollo's `useQuery`              | `api/`, `utils/`               |
+| `features/`      | Wraps GraphQL queries with React Query's `useQuery`         | `api/`, `utils/`               |
 | `api/`           | GraphQL schema + resolvers; REST adapters call Open-Meteo   | `types/`                       |
 | `utils/`         | Pure, deterministic business logic (activity scoring)       | nothing                        |
 | `store/`         | Client UI state (the selected city)                         | nothing                        |
@@ -61,20 +61,25 @@ src/
 Each layer can be tested or replaced independently — for example, the activity
 ranking is a pure function with no React, no fetch, and no store dependency.
 
-### GraphQL abstraction
+### GraphQL abstraction + caching
 
 Because the challenge ships **no backend**, the app builds an executable GraphQL
-schema in the browser using `@graphql-tools/schema` and wires it to Apollo Client
-via `SchemaLink`. From the rest of the application's point of view this looks
-identical to a real Apollo Client connected to a remote GraphQL server:
+schema in the browser using `@graphql-tools/schema` and exposes a single
+`request(document, variables)` function that runs queries against it locally
+using the reference `execute` function from the `graphql` package.
 
 - Queries are written as standard `gql` documents (`SEARCH_CITIES_QUERY`,
   `GET_WEATHER_QUERY`).
-- Components use Apollo's `useQuery` hook with proper `loading` / `error` / `data`
-  states.
-- Apollo's `InMemoryCache` automatically dedupes queries and caches results.
-- Swapping to a real remote GraphQL server later would mean replacing `SchemaLink`
-  with `HttpLink` — nothing else changes.
+- Each feature hook wraps `request(...)` with **React Query's `useQuery`**,
+  giving us proper `data` / `loading` / `error` states out of the box.
+- **Caching is owned by React Query**, configured per-feature:
+  - City search: `staleTime: Infinity` — re-typing the same query never refetches.
+  - Weather forecast: `staleTime: 10 minutes` — re-selecting a recent city is
+    instant; after 10 minutes the data is treated as stale and re-fetched in
+    the background.
+- Swapping to a real remote GraphQL server later means replacing the local
+  `execute` call inside `request(...)` with a `fetch` POST to the endpoint —
+  nothing else changes.
 
 The REST adapters in `src/api/rest/` are the only files that know about
 Open-Meteo's HTTP endpoints. The resolver map in `src/api/resolvers.ts` is the
@@ -86,12 +91,13 @@ seam between "GraphQL" and "REST".
 | -------------------- | ------------------------------------- | ---------------------------------------------------------------- |
 | Build/dev server     | **Vite**                              | Fast, modern; first-class TS + React support                     |
 | Language             | **TypeScript** (strict mode)          | Required by the brief; catches whole classes of bugs             |
-| GraphQL client       | **Apollo Client v4 + SchemaLink**     | The most familiar React + GraphQL stack; built-in caching        |
-| Schema tooling       | **@graphql-tools/schema**             | Builds an executable schema in the browser                       |
+| GraphQL syntax       | **graphql-tag (`gql`)**               | Parse query documents at build time                              |
+| GraphQL execution    | **`graphql` + @graphql-tools/schema** | Run queries locally against an executable schema (no backend)    |
+| Server-state caching | **React Query (TanStack Query)**      | Per-feature `staleTime`, request deduping, loading/error states  |
 | Client state         | **Zustand**                           | Minimal API; co-locates state with hooks; tree-shakeable         |
 | Styling              | **CSS Modules** (no Tailwind / SCSS)  | Plain CSS, scoped per component, zero runtime overhead           |
 | Testing              | **Jest + React Testing Library**      | Required by the brief; data-driven tests, user-centric APIs      |
-| Mocking GraphQL      | **Apollo's `MockedProvider`**         | Standard Apollo testing pattern, no fetch mocking needed         |
+| Test mocking         | **Mocked `global.fetch`**             | Exercises the GraphQL → REST adapter path end-to-end             |
 | Accessibility        | **WAI-ARIA combobox pattern**         | Keyboard-first; works with screen readers                        |
 
 ## How to run the project

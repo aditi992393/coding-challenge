@@ -13,9 +13,10 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "@apollo/client": "^4.2.0",
     "@graphql-tools/schema": "^10.0.33",
+    "@tanstack/react-query": "^5.100.14",
     "graphql": "^16.14.0",
+    "graphql-tag": "^2.12.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "zustand": "^5.0.14"

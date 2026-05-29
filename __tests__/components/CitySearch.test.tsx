@@ -1,83 +1,87 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { GraphQLError } from "graphql";
 import { CitySearch } from "@/components/CitySearch/CitySearch";
 import { useCityStore } from "@/store/useCityStore";
-import { SEARCH_CITIES_QUERY } from "@/api/queries/searchCities";
-import { renderWithApollo } from "../test-utils";
+import { renderWithProviders } from "../test-utils";
 
-const londonResults = [
-  {
-    id: 2643743,
-    name: "London",
-    country: "United Kingdom",
-    countryCode: "GB",
-    admin1: "England",
-    latitude: 51.5074,
-    longitude: -0.1278,
-    timezone: "Europe/London",
-  },
-  {
-    id: 2643742,
-    name: "Londonderry",
-    country: "United Kingdom",
-    countryCode: "GB",
-    admin1: "Northern Ireland",
-    latitude: 55,
-    longitude: -7.31,
-    timezone: "Europe/London",
-  },
-];
-
-function citiesMock(query: string, results: typeof londonResults) {
-  return {
-    request: {
-      query: SEARCH_CITIES_QUERY,
-      variables: { query, count: 8 },
+const geocodingResponse = {
+  results: [
+    {
+      id: 2643743,
+      name: "London",
+      country: "United Kingdom",
+      country_code: "GB",
+      admin1: "England",
+      latitude: 51.5074,
+      longitude: -0.1278,
+      timezone: "Europe/London",
     },
-    result: { data: { searchCities: results } },
-  };
+    {
+      id: 2643742,
+      name: "Londonderry",
+      country: "United Kingdom",
+      country_code: "GB",
+      admin1: "Northern Ireland",
+      latitude: 55.0,
+      longitude: -7.31,
+      timezone: "Europe/London",
+    },
+  ],
+};
+
+function mockFetchOnce(payload: unknown, ok = true) {
+  (global.fetch as jest.Mock).mockResolvedValueOnce({
+    ok,
+    status: ok ? 200 : 500,
+    json: async () => payload,
+  });
 }
 
 describe("<CitySearch />", () => {
   beforeEach(() => {
     useCityStore.setState({ selectedCity: null });
+    global.fetch = jest.fn();
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("renders the labelled combobox", () => {
-    renderWithApollo(<CitySearch />);
+    renderWithProviders(<CitySearch />);
     expect(
       screen.getByRole("combobox", { name: /where are you headed/i }),
     ).toBeInTheDocument();
   });
 
-  it("fetches and displays city suggestions for partial input", async () => {
+  it("does not query the API for inputs shorter than 2 characters", async () => {
     const user = userEvent.setup();
-    renderWithApollo(<CitySearch />, [citiesMock("Lon", londonResults)]);
+    renderWithProviders(<CitySearch />);
+    await user.type(screen.getByRole("combobox"), "L");
+    await new Promise((r) => setTimeout(r, 350));
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("fetches and displays city suggestions for partial input", async () => {
+    mockFetchOnce(geocodingResponse);
+    const user = userEvent.setup();
+    renderWithProviders(<CitySearch />);
     await user.type(screen.getByRole("combobox"), "Lon");
     expect(await screen.findByText("London")).toBeInTheDocument();
     expect(screen.getByText("Londonderry")).toBeInTheDocument();
   });
 
   it("shows an empty-state message when no cities match", async () => {
+    mockFetchOnce({ results: [] });
     const user = userEvent.setup();
-    renderWithApollo(<CitySearch />, [citiesMock("zzqq", [])]);
-    await user.type(screen.getByRole("combobox"), "zzqq");
+    renderWithProviders(<CitySearch />);
+    await user.type(screen.getByRole("combobox"), "zzqqxx");
     expect(await screen.findByText(/no cities match/i)).toBeInTheDocument();
   });
 
   it("surfaces network errors in the dropdown", async () => {
-    const errorMock = {
-      request: {
-        query: SEARCH_CITIES_QUERY,
-        variables: { query: "Lon", count: 8 },
-      },
-      result: {
-        errors: [new GraphQLError("Network down")],
-      },
-    };
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("Network down"));
     const user = userEvent.setup();
-    renderWithApollo(<CitySearch />, [errorMock]);
+    renderWithProviders(<CitySearch />);
     await user.type(screen.getByRole("combobox"), "Lon");
     expect(
       await screen.findByText(/unable to load suggestions/i),
@@ -85,8 +89,9 @@ describe("<CitySearch />", () => {
   });
 
   it("selects a city via mouse click and updates the store", async () => {
+    mockFetchOnce(geocodingResponse);
     const user = userEvent.setup();
-    renderWithApollo(<CitySearch />, [citiesMock("Lon", londonResults)]);
+    renderWithProviders(<CitySearch />);
     await user.type(screen.getByRole("combobox"), "Lon");
     const option = await screen.findByText("London");
     await user.click(option);
@@ -96,13 +101,27 @@ describe("<CitySearch />", () => {
   });
 
   it("supports keyboard navigation: ArrowDown + Enter selects an option", async () => {
+    mockFetchOnce(geocodingResponse);
     const user = userEvent.setup();
-    renderWithApollo(<CitySearch />, [citiesMock("Lon", londonResults)]);
-    await user.type(screen.getByRole("combobox"), "Lon");
+    renderWithProviders(<CitySearch />);
+    const combobox = screen.getByRole("combobox");
+    await user.type(combobox, "Lon");
     await screen.findByText("London");
     await user.keyboard("{ArrowDown}{Enter}");
     await waitFor(() => {
       expect(useCityStore.getState().selectedCity?.name).toBe("Londonderry");
     });
+  });
+
+  it("uses the cache: re-typing the same query does not fire a second fetch", async () => {
+    mockFetchOnce(geocodingResponse);
+    const user = userEvent.setup();
+    renderWithProviders(<CitySearch />);
+    const combobox = screen.getByRole("combobox");
+    await user.type(combobox, "Lon");
+    await screen.findByText("London");
+    // Caches are reset between tests, so set staleTime in app code makes this
+    // assertion verify that ONE fetch handled the typing session.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });

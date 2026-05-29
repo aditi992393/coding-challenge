@@ -1,8 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import { ActivityRecommendations } from "@/components/ActivityRecommendations/ActivityRecommendations";
 import { useCityStore } from "@/store/useCityStore";
-import { GET_WEATHER_QUERY } from "@/api/queries/getWeather";
-import { renderWithApollo } from "../test-utils";
+import { renderWithProviders } from "../test-utils";
 import type { City } from "@/types";
 
 const tokyo: City = {
@@ -13,57 +12,62 @@ const tokyo: City = {
   longitude: 139.6503,
 };
 
-const snowyWeather = {
-  timezone: "Asia/Tokyo",
-  current: {
-    temperature: -2,
-    windSpeed: 8,
-    weatherCode: 71,
-    time: "2025-01-01T10:00",
-  },
-  daily: [-1, -2, -3, -1, 0].map((max, i) => ({
-    date: `2025-01-0${i + 1}`,
-    temperatureMax: max,
-    temperatureMin: max - 7,
-    precipitationSum: 0,
-    snowfallSum: 4,
-    windSpeedMax: 10,
-    weatherCode: 71,
-  })),
-};
+function snowyResponse() {
+  return {
+    timezone: "Asia/Tokyo",
+    current_weather: {
+      temperature: -2,
+      windspeed: 8,
+      weathercode: 71,
+      time: "2025-01-01T10:00",
+    },
+    daily: {
+      time: ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04", "2025-01-05"],
+      temperature_2m_max: [-1, -2, -3, -1, 0],
+      temperature_2m_min: [-8, -9, -10, -7, -6],
+      precipitation_sum: [0, 0, 0, 0, 0],
+      snowfall_sum: [4, 3, 5, 2, 4],
+      windspeed_10m_max: [10, 12, 8, 10, 14],
+      weathercode: [71, 73, 75, 71, 71],
+    },
+  };
+}
 
-const snowyMock = {
-  request: {
-    query: GET_WEATHER_QUERY,
-    variables: { latitude: tokyo.latitude, longitude: tokyo.longitude, days: 7 },
-  },
-  result: { data: { getWeather: snowyWeather } },
-};
+function mockFetchOnce(payload: unknown) {
+  (global.fetch as jest.Mock).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  });
+}
 
 describe("<ActivityRecommendations />", () => {
   beforeEach(() => {
     useCityStore.setState({ selectedCity: null });
+    global.fetch = jest.fn();
   });
+  afterEach(() => jest.restoreAllMocks());
 
   it("renders nothing when no city is selected", () => {
-    const { container } = renderWithApollo(<ActivityRecommendations />);
+    const { container } = renderWithProviders(<ActivityRecommendations />);
     expect(container.firstChild).toBeNull();
   });
 
   it("renders all four activities ranked, highest first", async () => {
+    mockFetchOnce(snowyResponse());
     useCityStore.setState({ selectedCity: tokyo });
-    renderWithApollo(<ActivityRecommendations />, [snowyMock]);
+    renderWithProviders(<ActivityRecommendations />);
     await waitFor(() =>
       expect(screen.getAllByRole("listitem")).toHaveLength(4),
     );
     const items = screen.getAllByRole("listitem");
-    // Skiing should rank #1 for the heavy-snow forecast.
     expect(items[0]).toHaveTextContent(/skiing/i);
   });
 
   it("shows progress bars with valid aria-valuenow", async () => {
+    mockFetchOnce(snowyResponse());
     useCityStore.setState({ selectedCity: tokyo });
-    renderWithApollo(<ActivityRecommendations />, [snowyMock]);
+    renderWithProviders(<ActivityRecommendations />);
     const bars = await screen.findAllByRole("progressbar");
     expect(bars).toHaveLength(4);
     for (const bar of bars) {
