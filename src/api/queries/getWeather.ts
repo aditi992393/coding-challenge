@@ -1,8 +1,8 @@
-import gql from "graphql-tag";
+import { gql } from "@apollo/client";
+import type { WeatherForecast } from "@/types";
 
 /**
  * GraphQL query for retrieving a weather forecast for given coordinates.
- * Resolved client-side by the local executor against the Open-Meteo Forecast API.
  */
 export const GET_WEATHER_QUERY = gql`
   query GetWeather($latitude: Float!, $longitude: Float!, $days: Int) {
@@ -26,3 +26,13 @@ export const GET_WEATHER_QUERY = gql`
     }
   }
 `;
+
+export interface GetWeatherData {
+  getWeather: WeatherForecast;
+}
+
+export interface GetWeatherVars {
+  latitude: number;
+  longitude: number;
+  days?: number;
+}

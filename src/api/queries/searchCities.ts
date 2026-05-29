@@ -1,8 +1,9 @@
-import gql from "graphql-tag";
+import { gql } from "@apollo/client";
+import type { City } from "@/types";
 
 /**
  * GraphQL query for dynamic city autocomplete.
- * Resolved client-side by the local executor against the Open-Meteo Geocoding API.
+ * Returned data is shaped according to the schema (`City[]`).
  */
 export const SEARCH_CITIES_QUERY = gql`
   query SearchCities($query: String!, $count: Int) {
@@ -18,3 +19,12 @@ export const SEARCH_CITIES_QUERY = gql`
     }
   }
 `;
+
+export interface SearchCitiesData {
+  searchCities: City[];
+}
+
+export interface SearchCitiesVars {
+  query: string;
+  count?: number;
+}

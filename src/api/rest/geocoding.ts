@@ -1,8 +1,9 @@
 import type { City } from "@/types";
 
 /**
- * Resolver for the Open-Meteo Geocoding API.
- * Transforms the REST response into our domain City type.
+ * REST adapter for the Open-Meteo Geocoding API.
+ * Called by the GraphQL `searchCities` resolver. Transforms the REST response
+ * into our domain `City` type.
  */
 
 const GEOCODING_ENDPOINT = "https://geocoding-api.open-meteo.com/v1/search";
@@ -22,7 +23,7 @@ interface GeocodingApiResponse {
   results?: GeocodingApiResult[];
 }
 
-export async function searchCitiesResolver(args: {
+export async function fetchCities(args: {
   query: string;
   count?: number;
 }): Promise<City[]> {

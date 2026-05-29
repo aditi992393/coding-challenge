@@ -5,6 +5,7 @@ import { useCitySearch } from "@/features/city-search/useCitySearch";
 import { useCityStore } from "@/store/useCityStore";
 import { Spinner } from "@/components/common/Spinner";
 import type { City } from "@/types";
+import styles from "./CitySearch.module.css";
 
 /**
  * Accessible combobox for dynamic city search.
@@ -20,7 +21,7 @@ export function CitySearch() {
   const [isOpen, setIsOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const debounced = useDebounce(input, 250);
-  const { data, isFetching, isError, error } = useCitySearch(debounced);
+  const { cities, loading, error } = useCitySearch(debounced);
   const selectCity = useCityStore((s) => s.selectCity);
   const selectedCity = useCityStore((s) => s.selectedCity);
   const listboxId = useId();
@@ -41,15 +42,13 @@ export function CitySearch() {
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
-  const results = data ?? [];
-  const showPanel =
-    isOpen &&
-    debounced.trim().length >= 2 &&
-    (isFetching || isError || results.length >= 0);
+  const showPanel = isOpen && debounced.trim().length >= 2;
 
   function handleSelect(city: City) {
     selectCity(city);
-    setInput(`${city.name}${city.admin1 ? ", " + city.admin1 : ""}, ${city.country}`);
+    setInput(
+      `${city.name}${city.admin1 ? ", " + city.admin1 : ""}, ${city.country}`,
+    );
     setIsOpen(false);
   }
 
@@ -57,14 +56,14 @@ export function CitySearch() {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setIsOpen(true);
-      setHighlight((h) => Math.min(results.length - 1, h + 1));
+      setHighlight((h) => Math.min(cities.length - 1, h + 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlight((h) => Math.max(0, h - 1));
     } else if (e.key === "Enter") {
-      if (results[highlight]) {
+      if (cities[highlight]) {
         e.preventDefault();
-        handleSelect(results[highlight]);
+        handleSelect(cities[highlight]);
       }
     } else if (e.key === "Escape") {
       setIsOpen(false);
@@ -72,14 +71,11 @@ export function CitySearch() {
   }
 
   return (
-    <div ref={containerRef} className="relative">
-      <label
-        htmlFor="city-search-input"
-        className="mb-1.5 block text-sm font-medium text-slate-700"
-      >
+    <div ref={containerRef} className={styles.container}>
+      <label htmlFor="city-search-input" className={styles.label}>
         Where are you headed?
       </label>
-      <div className="relative">
+      <div className={styles.inputWrapper}>
         <input
           id="city-search-input"
           type="text"
@@ -88,8 +84,8 @@ export function CitySearch() {
           aria-controls={listboxId}
           aria-autocomplete="list"
           aria-activedescendant={
-            showPanel && results[highlight]
-              ? `${optionIdPrefix}-${results[highlight].id}`
+            showPanel && cities[highlight]
+              ? `${optionIdPrefix}-${cities[highlight].id}`
               : undefined
           }
           autoComplete="off"
@@ -104,10 +100,10 @@ export function CitySearch() {
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={onKeyDown}
-          className="focus-ring w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400"
+          className={styles.input}
         />
-        {isFetching ? (
-          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+        {loading ? (
+          <div className={styles.spinnerSlot}>
             <Spinner size="sm" label="Searching cities" />
           </div>
         ) : null}
@@ -118,26 +114,18 @@ export function CitySearch() {
           id={listboxId}
           role="listbox"
           aria-label="City suggestions"
-          className="absolute z-10 mt-1 max-h-80 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
+          className={styles.listbox}
         >
-          {isError ? (
-            <li
-              role="option"
-              aria-selected={false}
-              className="px-4 py-3 text-sm text-red-700"
-            >
-              Unable to load suggestions: {error instanceof Error ? error.message : "Unknown error"}
+          {error ? (
+            <li role="option" aria-selected={false} className={styles.optionError}>
+              Unable to load suggestions: {error.message}
             </li>
-          ) : results.length === 0 && !isFetching ? (
-            <li
-              role="option"
-              aria-selected={false}
-              className="px-4 py-3 text-sm text-slate-500"
-            >
+          ) : cities.length === 0 && !loading ? (
+            <li role="option" aria-selected={false} className={styles.optionEmpty}>
               No cities match “{debounced}”. Try a different spelling.
             </li>
           ) : (
-            results.map((city, i) => (
+            cities.map((city, i) => (
               <li
                 key={city.id}
                 id={`${optionIdPrefix}-${city.id}`}
@@ -148,14 +136,12 @@ export function CitySearch() {
                   e.preventDefault();
                   handleSelect(city);
                 }}
-                className={`cursor-pointer px-4 py-2.5 text-sm ${
-                  i === highlight
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-slate-700 hover:bg-slate-50"
+                className={`${styles.option} ${
+                  i === highlight ? styles.optionActive : ""
                 }`}
               >
-                <div className="font-medium">{city.name}</div>
-                <div className="text-xs text-slate-500">
+                <div className={styles.optionTitle}>{city.name}</div>
+                <div className={styles.optionMeta}>
                   {[city.admin1, city.country].filter(Boolean).join(", ")}
                 </div>
               </li>

@@ -1,7 +1,8 @@
 import type { WeatherForecast } from "@/types";
 
 /**
- * Resolver for the Open-Meteo Forecast API.
+ * REST adapter for the Open-Meteo Forecast API.
+ * Called by the GraphQL `getWeather` resolver.
  */
 
 const FORECAST_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
@@ -25,7 +26,7 @@ interface ForecastApiResponse {
   };
 }
 
-export async function getWeatherForecastResolver(args: {
+export async function fetchWeather(args: {
   latitude: number;
   longitude: number;
   days?: number;

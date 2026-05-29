@@ -4,16 +4,20 @@ import { Spinner } from "@/components/common/Spinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Skeleton } from "@/components/common/Skeleton";
 import { getWeatherEmoji, getWeatherLabel } from "@/utils/weatherCodes";
+import styles from "./WeatherForecast.module.css";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function WeatherForecast() {
   const selectedCity = useCityStore((s) => s.selectedCity);
-  const { data, isLoading, isError, error, refetch, isFetching } =
-    useWeatherForecast(selectedCity);
+  const { forecast, loading, error, refetch } = useWeatherForecast(selectedCity);
 
   if (!selectedCity) {
     return (
@@ -25,33 +29,32 @@ export function WeatherForecast() {
     );
   }
 
-  if (isLoading) {
+  if (loading && !forecast) {
     return (
-      <section aria-busy="true" aria-live="polite" className="space-y-4">
-        <Skeleton className="h-24 w-full" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <section
+        aria-busy="true"
+        aria-live="polite"
+        className={styles.section}
+      >
+        <Skeleton className={styles.skeletonHeader} />
+        <div className={styles.dailyGrid}>
           {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className={styles.skeletonCard} />
           ))}
         </div>
       </section>
     );
   }
 
-  if (isError) {
+  if (error) {
     return (
-      <div
-        role="alert"
-        className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800"
-      >
-        <p className="font-semibold">Couldn't load the forecast</p>
-        <p className="mt-1 text-sm">
-          {error instanceof Error ? error.message : "Unknown error"}
-        </p>
+      <div role="alert" className={styles.errorBox}>
+        <p className={styles.errorTitle}>Couldn't load the forecast</p>
+        <p className={styles.errorMessage}>{error.message}</p>
         <button
           type="button"
           onClick={() => refetch()}
-          className="focus-ring mt-3 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          className={styles.errorButton}
         >
           Retry
         </button>
@@ -59,59 +62,49 @@ export function WeatherForecast() {
     );
   }
 
-  if (!data) return null;
+  if (!forecast) return null;
 
   return (
-    <section aria-labelledby="forecast-heading" className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-2">
+    <section aria-labelledby="forecast-heading" className={styles.section}>
+      <header className={styles.header}>
         <div>
-          <h2
-            id="forecast-heading"
-            className="text-xl font-semibold text-slate-900 sm:text-2xl"
-          >
+          <h2 id="forecast-heading" className={styles.title}>
             {selectedCity.name}
             {selectedCity.admin1 ? `, ${selectedCity.admin1}` : ""}
           </h2>
-          <p className="text-sm text-slate-500">
-            {selectedCity.country} · {data.timezone}
+          <p className={styles.subtitle}>
+            {selectedCity.country} · {forecast.timezone}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {isFetching ? <Spinner size="sm" label="Refreshing forecast" /> : null}
-          <div className="text-right">
-            <div className="text-3xl font-semibold text-slate-900">
-              <span aria-hidden className="mr-1">
-                {getWeatherEmoji(data.current.weatherCode)}
+        <div className={styles.currentWrap}>
+          {loading ? <Spinner size="sm" label="Refreshing forecast" /> : null}
+          <div className={styles.currentTemp}>
+            <div className={styles.currentValue}>
+              <span aria-hidden className={styles.currentValueIcon}>
+                {getWeatherEmoji(forecast.current.weatherCode)}
               </span>
-              {Math.round(data.current.temperature)}°C
+              {Math.round(forecast.current.temperature)}°C
             </div>
-            <div className="text-xs text-slate-500">
-              {getWeatherLabel(data.current.weatherCode)} · wind{" "}
-              {Math.round(data.current.windSpeed)} km/h
+            <div className={styles.currentLabel}>
+              {getWeatherLabel(forecast.current.weatherCode)} · wind{" "}
+              {Math.round(forecast.current.windSpeed)} km/h
             </div>
           </div>
         </div>
       </header>
 
-      <ul
-        role="list"
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7"
-      >
-        {data.daily.map((day) => (
-          <li
-            key={day.date}
-            className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm"
-          >
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              {formatDate(day.date)}
-            </div>
-            <div className="my-1 text-2xl" aria-hidden>
+      <ul role="list" className={styles.dailyGrid}>
+        {forecast.daily.map((day) => (
+          <li key={day.date} className={styles.day}>
+            <div className={styles.dayLabel}>{formatDate(day.date)}</div>
+            <div className={styles.dayIcon} aria-hidden>
               {getWeatherEmoji(day.weatherCode)}
             </div>
-            <div className="text-sm font-semibold text-slate-900">
-              {Math.round(day.temperatureMax)}° / {Math.round(day.temperatureMin)}°
+            <div className={styles.dayTemp}>
+              {Math.round(day.temperatureMax)}° /{" "}
+              {Math.round(day.temperatureMin)}°
             </div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className={styles.dayMeta}>
               {day.precipitationSum > 0
                 ? `${day.precipitationSum.toFixed(1)} mm`
                 : day.snowfallSum > 0

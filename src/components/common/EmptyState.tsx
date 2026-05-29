@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import styles from "./EmptyState.module.css";
 
 interface EmptyStateProps {
   title: string;
@@ -8,19 +9,14 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, icon }: EmptyStateProps) {
   return (
-    <div
-      role="status"
-      className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white/70 py-10 px-6 text-center"
-    >
+    <div role="status" className={styles.wrapper}>
       {icon ? (
-        <div aria-hidden className="text-3xl">
+        <div aria-hidden className={styles.icon}>
           {icon}
         </div>
       ) : null}
-      <p className="text-base font-semibold text-slate-700">{title}</p>
-      {description ? (
-        <p className="max-w-md text-sm text-slate-500">{description}</p>
-      ) : null}
+      <p className={styles.title}>{title}</p>
+      {description ? <p className={styles.description}>{description}</p> : null}
     </div>
   );
 }

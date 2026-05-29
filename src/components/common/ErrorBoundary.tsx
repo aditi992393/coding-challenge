@@ -1,5 +1,6 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import styles from "./ErrorBoundary.module.css";
 
 interface Props {
   children: ReactNode;
@@ -33,17 +34,10 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
     if (this.props.fallback) return this.props.fallback(error, this.reset);
     return (
-      <div
-        role="alert"
-        className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800"
-      >
-        <p className="font-semibold">Something went wrong</p>
-        <p className="mt-1 text-sm">{error.message}</p>
-        <button
-          type="button"
-          onClick={this.reset}
-          className="focus-ring mt-3 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-        >
+      <div role="alert" className={styles.alert}>
+        <p className={styles.title}>Something went wrong</p>
+        <p className={styles.message}>{error.message}</p>
+        <button type="button" onClick={this.reset} className={styles.button}>
           Try again
         </button>
       </div>

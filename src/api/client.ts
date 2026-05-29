@@ -1,57 +1,28 @@
-import type { DocumentNode, OperationDefinitionNode } from "graphql";
-import { searchCitiesResolver } from "@/api/resolvers/geocoding";
-import { getWeatherForecastResolver } from "@/api/resolvers/weather";
+import { ApolloClient, InMemoryCache } from "@apollo/client";
+import { SchemaLink } from "@apollo/client/link/schema";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { typeDefs } from "@/api/schema";
+import { resolvers } from "@/api/resolvers";
 
 /**
- * Lightweight in-process GraphQL executor.
+ * Standard Apollo Client setup.
  *
- * Rather than depending on a remote GraphQL server (no backend is required for this
- * challenge), we expose `gql` documents to the rest of the application and route
- * them to typed resolvers that ultimately call Open-Meteo's REST endpoints.
+ * Because the challenge has no backend, we build an executable schema in the
+ * browser (`makeExecutableSchema`) and wire it to Apollo via `SchemaLink`.
+ * From the rest of the application's point of view this looks like a normal
+ * Apollo Client connected to a remote GraphQL server — components use the
+ * standard `useQuery` hook and `gql` template tag from `@apollo/client`.
  *
- * This gives us:
- *  - A real GraphQL abstraction at the boundary (queries are declarative documents).
- *  - Strong typing through TypeScript.
- *  - A single place to swap implementations (e.g. point at a real GraphQL endpoint later).
+ * `InMemoryCache` provides automatic response caching (deduping repeat
+ * queries, sharing data between components, etc.).
  */
+const schema = makeExecutableSchema({ typeDefs, resolvers });
 
-type Resolver = (args: Record<string, unknown>) => Promise<unknown>;
-
-const resolvers: Record<string, Resolver> = {
-  searchCities: (args) =>
-    searchCitiesResolver(args as { query: string; count?: number }),
-  getWeather: (args) =>
-    getWeatherForecastResolver(
-      args as { latitude: number; longitude: number; days?: number },
-    ),
-};
-
-function getRootFieldName(document: DocumentNode): string {
-  const operation = document.definitions.find(
-    (d): d is OperationDefinitionNode => d.kind === "OperationDefinition",
-  );
-  if (!operation) {
-    throw new Error("No operation definition in query document");
-  }
-  const firstField = operation.selectionSet.selections.find(
-    (s) => s.kind === "Field",
-  );
-  if (!firstField || firstField.kind !== "Field") {
-    throw new Error("Operation has no root field");
-  }
-  return firstField.name.value;
-}
-
-export async function executeQuery<TResult>(
-  document: DocumentNode,
-  variables: Record<string, unknown> = {},
-): Promise<TResult> {
-  const rootField = getRootFieldName(document);
-  const resolver = resolvers[rootField];
-  if (!resolver) {
-    throw new Error(`No resolver registered for field: ${rootField}`);
-  }
-  const data = await resolver(variables);
-  // Mirror a GraphQL response shape: `{ [rootField]: <resolverResult> }`.
-  return { [rootField]: data } as TResult;
-}
+export const apolloClient = new ApolloClient({
+  link: new SchemaLink({ schema }),
+  cache: new InMemoryCache(),
+  defaultOptions: {
+    watchQuery: { fetchPolicy: "cache-and-network" },
+    query: { fetchPolicy: "cache-first" },
+  },
+});
