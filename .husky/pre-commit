@@ -1,12 +1,13 @@
+echo "Auto-formatting with Prettier..."
+npm run format || exit 1
+
+# Re-stage any files Prettier modified that were already part of this commit.
+# `git update-index --again` only touches files already in the index — it
+# won't accidentally stage unrelated changes from the working tree.
+git update-index --again
+
 echo "Running lint..."
 npm run lint || exit 1
-
-echo "Checking prettier formatting..."
-npm run format:check || {
-  echo ""
-  echo "Prettier check failed. Run 'npm run format' to fix formatting."
-  exit 1
-}
 
 echo "Running tests..."
 npm test || exit 1

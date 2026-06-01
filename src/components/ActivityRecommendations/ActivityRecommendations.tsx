@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { useWeatherForecast } from '@/hooks/useWeatherForecast';
 import { Skeleton } from '@/components/common/Skeleton';
 import { rankActivities } from '@/utils/activityScoring';
-import { getScoreLabel, getScoreLevel, type ScoreLevel } from '@/utils/activityScore';
+import { getScoreLabel, getScoreLevel, type ScoreLevel } from '@/utils/scoreDisplay';
 import { ACTIVITY_ICONS } from '@/components/constants';
 import type { ActivityRecommendationsProps } from '@/components/types';
 import styles from './ActivityRecommendations.module.css';
@@ -14,7 +15,8 @@ const LEVEL_TO_CLASS: Record<ScoreLevel, string> = {
 
 export function ActivityRecommendations({ city }: ActivityRecommendationsProps) {
   const { forecast, loading, error } = useWeatherForecast(city);
-  const ranked = forecast ? rankActivities(forecast) : [];
+
+  const ranked = useMemo(() => (forecast ? rankActivities(forecast) : []), [forecast]);
 
   if (!city || error) return null;
 

@@ -12,22 +12,50 @@ ranked by suitability against that forecast.
 
 ## 📌 Project overview
 
-The user flow follows the brief exactly:
+**Travel Planner** is a single-page React 19 + TypeScript web application
+that helps users pick the right outdoor activity for a destination based
+on its upcoming weather. It's built as a focused demonstration of
+production-grade frontend patterns: clean architecture, accessibility,
+caching, testing, and intentional separation of concerns.
 
-1. The user types `Lon` into the search box.
+### What users can do
+
+- **Search any city in the world** with autocomplete that fires only after
+  the user pauses typing (debounced 250 ms) and returns suggestions through
+  an accessible combobox.
+- **Select a city** with mouse or full keyboard navigation (Arrow keys,
+  Enter, Escape) — matching the WAI-ARIA combobox specification.
+- **See a 7-day forecast** for the selected city with current conditions
+  (temperature, wind, weather code) and a per-day grid of highs, lows, and
+  precipitation.
+- **Get ranked activity recommendations** for four activities — skiing,
+  surfing, indoor sightseeing, outdoor sightseeing — each with a numeric
+  score (0–100), a progress bar, and a one-line reason.
+
+### How it's built
+
+- **React 19 + TypeScript (strict)** — functional components and hooks only.
+- **GraphQL abstraction** — queries are written as standard `gql` documents
+  resolved by a 30-line in-browser router that dispatches to REST adapters
+  for the Open-Meteo APIs. Swapping in a real GraphQL backend later
+  requires changing a single file.
+- **React Query** owns server-state caching: re-searching the same city is
+  instant, and weather forecasts stay fresh for 10 minutes.
+- **CSS Modules** for scoped, runtime-free styling.
+- **Pure scoring logic** — `rankActivities()` is a deterministic function
+  with no React or fetch dependency, fully unit-tested.
+- **Resilient UI** — skeleton loaders, empty states, retry-on-error,
+  and `<ErrorBoundary />` around each section so one failure can't take
+  down the others.
+
+### Example user flow (from the brief)
+
+1. User types `Lon` into the search box.
 2. Suggestions (`London`, `Londonderry`, …) appear in an accessible combobox.
-3. The user selects a city — by mouse or by keyboard.
+3. User selects a city — by mouse or by keyboard.
 4. A 7-day forecast is rendered.
 5. Four activities are ranked by suitability, each with a numeric score
    (0–100), a progress bar, and a one-line reason.
-
-| Quality bar       | Status                                                                                                                           |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| ✅ Functionality  | Dynamic search, 7-day forecast, ranked activities                                                                                |
-| ✅ Tests          | **25 / 25 passing** across 5 suites                                                                                              |
-| ✅ Lint           | No errors                                                                                                                        |
-| ✅ Build          | Clean production build (~85 KB gzipped)                                                                                          |
-| ✅ Bonus criteria | Debounced search, response caching, error boundaries, skeleton loaders, accessibility, GraphQL abstraction, strong test coverage |
 
 ---
 
@@ -62,7 +90,7 @@ src/
 │   └── useWeatherForecast.ts      React Query wrapper around getWeather
 ├── utils/                      🧮 Pure functions (no React, no fetch)
 │   ├── activityScoring.ts         rankActivities + 4 scorers
-│   ├── activityScore.ts           getScoreLevel + getScoreLabel
+│   ├── scoreDisplay.ts            getScoreLevel + getScoreLabel (UI helpers)
 │   └── weatherCodes.ts            WMO code → emoji + label
 ├── types/                      📐 Shared domain types
 ├── App.tsx                        Composition root — owns `selectedCity`
@@ -146,6 +174,26 @@ Each feature hook wraps `request(...)` with `useQuery`, giving us
 
 ---
 
+## 🚫 What we deliberately didn't use
+
+For every popular tool we _could_ have reached for, here's the one-line
+answer to "why didn't you?" — each choice was deliberate.
+
+| Not used                                 | Why not                                                                                                                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **React Router / Next.js routing**       | Single-screen app — no distinct URLs or routes to manage.                                                                                                                    |
+| **Redux Toolkit / Zustand / Jotai**      | Only one piece of shared state (`selectedCity`) — `useState` in `App.tsx` is plenty.                                                                                         |
+| **Apollo Client / urql**                 | No real GraphQL server. A 30-line in-house router around `gql` documents is simpler and adds zero dependencies.                                                              |
+| **Tailwind CSS**                         | CSS Modules give scoped class names with zero runtime, no atomic-class build step, and a smaller learning curve.                                                             |
+| **Material UI / Chakra / Mantine**       | Hand-writing the WAI-ARIA combobox is a stronger signal for a senior role than installing 250 KB of pre-styled UI.                                                           |
+| **Axios**                                | Native `fetch` is now universally supported — one less dependency.                                                                                                           |
+| **`i18next` / `formatjs`**               | Single-language app per the brief; dates are already locale-aware via `Intl.DateTimeFormat`.                                                                                 |
+| **Service Worker / PWA**                 | Not in scope. React Query's session cache is the right level of caching for now.                                                                                             |
+| **Lazy loading / code splitting**        | Production bundle is ~85 KB gzipped. Splitting adds complexity for no measurable win at this size.                                                                           |
+| **Aggressive `useMemo` / `useCallback`** | Used where it documents intent and helps (e.g. `ranked` in `<ActivityRecommendations />`). Not applied to every value — that adds noise without measurable performance wins. |
+
+---
+
 ## 🧮 Activity scoring (in plain English)
 
 Each scorer answers **2–3 yes/no questions** about the week. Each `yes`
@@ -178,20 +226,23 @@ npm run preview       # preview the production build locally
 ## 🧪 How to run tests
 
 ```bash
-npm test              # run the full Jest suite (25 tests)
+npm test              # run the full Jest suite (31 tests across 7 suites)
 npm run test:watch    # re-run on change
 npm run test:coverage # generate coverage report
 ```
 
-Tests live in `__tests__/` and mirror the `src/` structure:
+Tests live in `__tests__/` and mirror the `src/` structure. Coverage spans
+**three levels** — pure logic, individual hooks, and component behaviour:
 
-| Suite                         | What it covers                                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `useDebounce.test.ts`         | Initial value, delay, timer reset on rapid changes                                             |
-| `activityScoring.test.ts`     | All 4 scorers + edge cases + score bounds + ordering                                           |
-| `<CitySearch />`              | Empty input, partial input, no results, network error, mouse + keyboard selection, cache reuse |
-| `<WeatherForecast />`         | Empty state, skeleton loading, success render, error + retry button                            |
-| `<ActivityRecommendations />` | Ranking order, progress-bar accessibility (`aria-valuenow`)                                    |
+| Suite                         | Level     | What it covers                                                                                 |
+| ----------------------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| `useDebounce.test.ts`         | Hook      | Initial value, delay, timer reset on rapid changes                                             |
+| `useCitySearch.test.tsx`      | Hook      | Skipped fetch for short input, mapped city results, error propagation                          |
+| `useWeatherForecast.test.tsx` | Hook      | Skipped fetch when no city, mapped forecast shape, error propagation                           |
+| `activityScoring.test.ts`     | Logic     | All 4 scorers + edge cases + score bounds + descending order                                   |
+| `<CitySearch />`              | Component | Empty input, partial input, no results, network error, mouse + keyboard selection, cache reuse |
+| `<WeatherForecast />`         | Component | Empty state, skeleton loading, success render, error + retry button                            |
+| `<ActivityRecommendations />` | Component | Ranking order, progress-bar accessibility (`aria-valuenow`)                                    |
 
 ---
 
@@ -237,28 +288,25 @@ Tests live in `__tests__/` and mirror the `src/` structure:
 
 ## ✨ Improvements with more time
 
-Listed in the order I'd actually build them — biggest visible wins first.
+These are **engineering and tooling** improvements that would strengthen
+the existing codebase — production-readiness rather than new features.
+Listed in roughly the order I'd add them, with the biggest reliability
+wins first.
 
-| #   | Improvement                                                                                    | Why it would impress a reviewer                                        | Effort |
-| --- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------ |
-| 1   | 🗺️ **Mini map** of the selected city (Leaflet / MapLibre)                                      | Makes the app feel like a _real_ travel product, not a forecast widget | ~2 h   |
-| 2   | 📆 **Per-day activity ranking** ("best ski day this week is Wednesday")                        | Solves a genuine UX gap — currently we only show the weekly average    | ~3 h   |
-| 3   | 🌗 **Dark-mode toggle** with `prefers-color-scheme` support                                    | Design tokens are already in `index.css`; just needs a theme switcher  | ~1 h   |
-| 4   | 🆚 **Side-by-side city comparison** (pick 2–3 cities, see which has the best weekend)          | Shows product thinking beyond the brief                                | ~4 h   |
-| 5   | ⏱️ **Hourly forecast popover** when clicking a day card                                        | Adds depth; makes the daily grid interactive instead of static         | ~2 h   |
-| 6   | 🌊 **Open-Meteo Marine API** for accurate surf scoring (wave height / period / direction)      | Removes the "wind-as-proxy" assumption                                 | ~2 h   |
-| 7   | 🧠 **Recent searches** (last 5 cities, persisted in `localStorage`)                            | One-tap re-selection for the most common user behaviour                | ~1 h   |
-| 8   | ♿ **`prefers-reduced-motion`** support — disable spinner / skeleton animations                | A direct hit on the "Accessibility improvements" bonus criterion       | ~30 m  |
-| 9   | 🤖 **GitHub Actions CI** — `npm test && npm run build` on every PR                             | Standard production hygiene                                            | ~30 m  |
-| 10  | 📸 **Visual regression tests** (Playwright + Chromatic / Loki)                                 | Catches UI breaks that unit tests miss                                 | ~2 h   |
-| 11  | 🏗️ **`graphql-codegen`** for fully typed queries (becomes valuable once a real backend exists) | Eliminates the manual `Data` / `Vars` interfaces                       | ~1 h   |
-| 12  | 📚 **Storybook** for the `common/` primitives                                                  | Useful starting point for a design system                              | ~2 h   |
-| 13  | 📡 **Sentry / Datadog** in `ErrorBoundary`                                                     | Real-world observability                                               | ~30 m  |
+| #   | Improvement                                                                                                                                    | Why it matters for this codebase                                                                                                                                                            | Effort |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | 🎭 **End-to-end tests with Playwright** — cover the full user journey: type `Lon` → select London → see forecast → see ranked activities       | Unit + component tests already catch most bugs, but only an E2E test verifies the whole chain (combobox → React Query → REST adapter → UI) works in a real browser                          | ~3 h   |
+| 2   | 🐛 **Sentry / Datadog in `<ErrorBoundary />`** — wire the existing `componentDidCatch` hook into a real error-tracking service                 | The boundary currently logs to `console.error` (a comment in the code already marks the integration point). In production we'd capture every uncaught render error with stack + breadcrumbs | ~30 m  |
+| 3   | 💬 **Slack alerts** for fatal errors — `#frontend-alerts` ping via a Sentry webhook (or a direct fetch from `ErrorBoundary.componentDidCatch`) | On-call gets notified the moment any user hits an unhandled error or the Open-Meteo APIs return 5xx                                                                                         | ~30 m  |
+| 4   | 🤖 **GitHub Actions CI** — `npm test && npm run lint && npm run build` on every PR                                                             | Currently Husky enforces this locally on pre-commit, but a CI gate prevents broken code from merging even if hooks are bypassed                                                             | ~30 m  |
+| 5   | 📚 **Storybook** for the `common/` primitives — `<Spinner />`, `<Skeleton />`, `<EmptyState />`, `<ErrorBoundary />`                           | Living documentation; useful as the foundation of a design system if the app grows                                                                                                          | ~2 h   |
+| 6   | 🪝 **Husky pre-push hook** — run the test suite before `git push` (currently only pre-commit lint + format)                                    | Catches test failures before they reach the remote                                                                                                                                          | ~15 m  |
+| 7   | 🧱 **Strict CSP headers** (`Content-Security-Policy`, `X-Frame-Options`) wired in via deployment config                                        | Hardens the app against XSS once it's hosted somewhere real                                                                                                                                 | ~30 m  |
 
-If I had to ship **three** today, they'd be **#1 (map), #2 (per-day
-ranking), and #3 (dark mode)** — they're the highest-visibility wins per
-hour invested, and they'd be the first things any reviewer notices when
-clicking around the app.
+If I had to ship **three** today, they'd be **#4 (GitHub Actions CI)**,
+**#1 (Playwright E2E)**, and **#2 (Sentry)** — they give the highest
+reliability return per hour invested and would make the project genuinely
+production-ready.
 
 ---
 

@@ -1,11 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import type { City } from '@/types';
 
-/**
- * Pure helper functions used by feature components in this folder.
- * Keeping them out of the .tsx files keeps the components focused on JSX.
- */
-
 /** Format a city as "London, England, United Kingdom". */
 export function formatCityLabel(city: City): string {
   return `${city.name}${city.admin1 ? ', ' + city.admin1 : ''}, ${city.country}`;
@@ -13,8 +8,9 @@ export function formatCityLabel(city: City): string {
 
 /** Format an ISO date string as "Fri, May 30" using the user's locale. */
 export function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString(undefined, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
