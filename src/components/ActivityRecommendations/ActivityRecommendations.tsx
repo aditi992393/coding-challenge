@@ -1,35 +1,22 @@
-import { useCityStore } from "@/store/useCityStore";
-import { useWeatherForecast } from "@/features/weather/useWeatherForecast";
-import { useActivityRanking } from "@/features/activities/useActivityRanking";
-import { Skeleton } from "@/components/common/Skeleton";
-import type { ActivityKind } from "@/types";
-import styles from "./ActivityRecommendations.module.css";
+import { useWeatherForecast } from '@/hooks/useWeatherForecast';
+import { Skeleton } from '@/components/common/Skeleton';
+import { rankActivities } from '@/utils/activityScoring';
+import { getScoreLabel, getScoreLevel, type ScoreLevel } from '@/utils/activityScore';
+import { ACTIVITY_ICONS } from '@/components/constants';
+import type { ActivityRecommendationsProps } from '@/components/types';
+import styles from './ActivityRecommendations.module.css';
 
-const ACTIVITY_ICONS: Record<ActivityKind, string> = {
-  skiing: "⛷️",
-  surfing: "🏄",
-  outdoor_sightseeing: "🏞️",
-  indoor_sightseeing: "🏛️",
+const LEVEL_TO_CLASS: Record<ScoreLevel, string> = {
+  excellent: styles.progressExcellent,
+  ok: styles.progressOk,
+  poor: styles.progressPoor,
 };
 
-function scoreClass(score: number): string {
-  if (score >= 70) return styles.progressExcellent;
-  if (score >= 40) return styles.progressOk;
-  return styles.progressPoor;
-}
+export function ActivityRecommendations({ city }: ActivityRecommendationsProps) {
+  const { forecast, loading, error } = useWeatherForecast(city);
+  const ranked = forecast ? rankActivities(forecast) : [];
 
-function scoreLabel(score: number): string {
-  if (score >= 70) return "Excellent";
-  if (score >= 40) return "Possible";
-  return "Not recommended";
-}
-
-export function ActivityRecommendations() {
-  const selectedCity = useCityStore((s) => s.selectedCity);
-  const { forecast, loading, error } = useWeatherForecast(selectedCity);
-  const ranked = useActivityRanking(forecast);
-
-  if (!selectedCity || error) return null;
+  if (!city || error) return null;
 
   if (loading && !forecast) {
     return (
@@ -63,10 +50,7 @@ export function ActivityRecommendations() {
                   <span className={styles.rank}>#{idx + 1}</span>
                   {activity.label}
                 </p>
-                <span
-                  className={styles.score}
-                  aria-label={`Score ${activity.score} out of 100`}
-                >
+                <span className={styles.score} aria-label={`Score ${activity.score} out of 100`}>
                   {activity.score}/100
                 </span>
               </div>
@@ -80,11 +64,11 @@ export function ActivityRecommendations() {
                 className={styles.progressTrack}
               >
                 <div
-                  className={`${styles.progressFill} ${scoreClass(activity.score)}`}
+                  className={`${styles.progressFill} ${LEVEL_TO_CLASS[getScoreLevel(activity.score)]}`}
                   style={{ width: `${activity.score}%` }}
                 />
               </div>
-              <p className={styles.qualityLabel}>{scoreLabel(activity.score)}</p>
+              <p className={styles.qualityLabel}>{getScoreLabel(activity.score)}</p>
             </div>
           </li>
         ))}

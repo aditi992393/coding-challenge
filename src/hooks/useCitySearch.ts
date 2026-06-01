@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import { request } from "@/api/client";
+import { useQuery } from '@tanstack/react-query';
+import { request } from '@/api/client';
 import {
   SEARCH_CITIES_QUERY,
   type SearchCitiesData,
   type SearchCitiesVars,
-} from "@/api/queries/searchCities";
+} from '@/api/queries/searchCities';
 
 /**
  * Feature hook for dynamic city autocomplete.
@@ -23,7 +23,7 @@ export function useCitySearch(query: string) {
   const enabled = trimmed.length >= 2;
 
   const result = useQuery({
-    queryKey: ["cities", trimmed],
+    queryKey: ['cities', trimmed],
     queryFn: async () => {
       const data = await request<SearchCitiesData>(SEARCH_CITIES_QUERY, {
         query: trimmed,

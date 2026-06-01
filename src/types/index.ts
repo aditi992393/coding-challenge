@@ -1,8 +1,3 @@
-/**
- * Domain types shared across the application.
- * Kept framework-agnostic so they can be reused by API, business logic and UI layers.
- */
-
 export interface City {
   id: number;
   name: string;
@@ -37,15 +32,11 @@ export interface WeatherForecast {
   timezone: string;
 }
 
-export type ActivityKind =
-  | "skiing"
-  | "surfing"
-  | "indoor_sightseeing"
-  | "outdoor_sightseeing";
+export type ActivityKind = 'skiing' | 'surfing' | 'indoor_sightseeing' | 'outdoor_sightseeing';
 
 export interface ActivityRecommendation {
   kind: ActivityKind;
   label: string;
-  score: number; // 0..100
+  score: number;
   reason: string;
 }

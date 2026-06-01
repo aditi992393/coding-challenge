@@ -1,4 +1,4 @@
-import type { City } from "@/types";
+import type { City } from '@/types';
 
 /**
  * REST adapter for the Open-Meteo Geocoding API.
@@ -6,7 +6,7 @@ import type { City } from "@/types";
  * into our domain `City` type.
  */
 
-const GEOCODING_ENDPOINT = "https://geocoding-api.open-meteo.com/v1/search";
+const GEOCODING_ENDPOINT = 'https://geocoding-api.open-meteo.com/v1/search';
 
 interface GeocodingApiResult {
   id: number;
@@ -23,26 +23,26 @@ interface GeocodingApiResponse {
   results?: GeocodingApiResult[];
 }
 
-export async function fetchCities(args: {
-  query: string;
-  count?: number;
-}): Promise<City[]> {
+// build URL → fetch → check error → parse → map shape as per we need
+export async function fetchCities(args: { query: string; count?: number }): Promise<City[]> {
   const query = args.query.trim();
   if (query.length < 2) return [];
 
   const url = new URL(GEOCODING_ENDPOINT);
-  url.searchParams.set("name", query);
-  url.searchParams.set("count", String(args.count ?? 8));
-  url.searchParams.set("language", "en");
-  url.searchParams.set("format", "json");
+  url.searchParams.set('name', query);
+  url.searchParams.set('count', String(args.count ?? 8));
+  url.searchParams.set('language', 'en');
+  url.searchParams.set('format', 'json');
 
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Geocoding request failed: ${response.status}`);
   }
+
   const data = (await response.json()) as GeocodingApiResponse;
   if (!data.results) return [];
 
+  //mapping because if further if any key name is changed from API , we just have to chnage it here in one place.
   return data.results.map<City>((r) => ({
     id: r.id,
     name: r.name,

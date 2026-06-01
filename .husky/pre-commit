@@ -1,0 +1,14 @@
+echo "Running lint..."
+npm run lint || exit 1
+
+echo "Checking prettier formatting..."
+npm run format:check || {
+  echo ""
+  echo "Prettier check failed. Run 'npm run format' to fix formatting."
+  exit 1
+}
+
+echo "Running tests..."
+npm test || exit 1
+
+echo "All checks passed."

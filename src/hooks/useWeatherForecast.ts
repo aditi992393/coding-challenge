@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
-import { request } from "@/api/client";
+import { useQuery } from '@tanstack/react-query';
+import { request } from '@/api/client';
 import {
   GET_WEATHER_QUERY,
   type GetWeatherData,
   type GetWeatherVars,
-} from "@/api/queries/getWeather";
-import type { City } from "@/types";
+} from '@/api/queries/getWeather';
+import type { City } from '@/types';
 
 /**
  * Feature hook to retrieve a weather forecast for a selected city.
@@ -19,9 +19,9 @@ import type { City } from "@/types";
  */
 export function useWeatherForecast(city: City | null) {
   const result = useQuery({
-    queryKey: ["weather", city?.latitude, city?.longitude],
+    queryKey: ['weather', city?.latitude, city?.longitude],
     queryFn: async () => {
-      if (!city) throw new Error("City is required");
+      if (!city) throw new Error('City is required');
       const data = await request<GetWeatherData>(GET_WEATHER_QUERY, {
         latitude: city.latitude,
         longitude: city.longitude,

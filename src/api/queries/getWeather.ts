@@ -1,9 +1,8 @@
-import gql from "graphql-tag";
-import type { WeatherForecast } from "@/types";
+import gql from 'graphql-tag';
+import type { WeatherForecast } from '@/types';
 
-/**
- * GraphQL query for retrieving a weather forecast for given coordinates.
- */
+// GraphQL query for retrieving a weather forecast for given coordinates.
+
 export const GET_WEATHER_QUERY = gql`
   query GetWeather($latitude: Float!, $longitude: Float!, $days: Int) {
     getWeather(latitude: $latitude, longitude: $longitude, days: $days) {

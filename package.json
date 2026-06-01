@@ -10,16 +10,17 @@
     "preview": "vite preview",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "dependencies": {
-    "@graphql-tools/schema": "^10.0.33",
     "@tanstack/react-query": "^5.100.14",
     "graphql": "^16.14.0",
     "graphql-tag": "^2.12.6",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "zustand": "^5.0.14"
+    "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.29.7",
@@ -39,10 +40,11 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "husky": "^9.1.7",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "ts-jest": "^29.4.11",
+    "prettier": "^3.8.3",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"

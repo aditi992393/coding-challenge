@@ -1,10 +1,7 @@
-import gql from "graphql-tag";
-import type { City } from "@/types";
+import gql from 'graphql-tag';
+import type { City } from '@/types';
 
-/**
- * GraphQL query for dynamic city autocomplete.
- * Returned data is shaped according to the schema (`City[]`).
- */
+// query for dynamic city autocomplete. Returned data is as perthe schema (`City[]`).
 export const SEARCH_CITIES_QUERY = gql`
   query SearchCities($query: String!, $count: Int) {
     searchCities(query: $query, count: $count) {

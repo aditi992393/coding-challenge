@@ -1,6 +1,6 @@
-import { Component } from "react";
-import type { ErrorInfo, ReactNode } from "react";
-import styles from "./ErrorBoundary.module.css";
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
+import styles from './ErrorBoundary.module.css';
 
 interface Props {
   children: ReactNode;
@@ -11,10 +11,6 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Class-based error boundary. Catches render errors from descendant components,
- * shows a recoverable fallback, and exposes a reset callback to restart the tree.
- */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -23,8 +19,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // In a real app this would feed Sentry/Datadog.
-    console.error("Unhandled error:", error, info);
+    //Can have notification to slack channel or Sentry
+    console.error('Unhandled error:', error, info);
   }
 
   reset = () => this.setState({ error: null });

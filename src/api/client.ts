@@ -1,37 +1,30 @@
-import { execute, type DocumentNode } from "graphql";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-import { typeDefs } from "@/api/schema";
-import { resolvers } from "@/api/resolvers";
+import type { DocumentNode, OperationDefinitionNode, FieldNode } from 'graphql';
+import { fetchCities } from '@/api/rest/geocoding';
+import { fetchWeather } from '@/api/rest/weather';
 
 /**
- * Lightweight GraphQL client.
- *
- * Because the challenge has no backend, we build an executable schema in the
- * browser and run queries against it locally (using the reference `execute`
- * function from the `graphql` package).
- *
- * Components never call `request` directly — they go through feature hooks
- * that wrap this in React Query, which gives us caching, request deduping,
- * background refetching, and loading/error states for free.
- *
- * If a real GraphQL endpoint becomes available, only this file changes:
- * swap the local `execute` for a `fetch` against the endpoint.
+ * Lightweight GraphQL client. Reads the root field from a gql query,
+ * calls the matching resolver, and returns the result as a GraphQL
+ * envelope (`{ [rootField]: data }`). Resolvers delegate to REST adapters
+ * in `src/api/rest/` — the only files aware of Open-Meteo's endpoints.
+ * Swapping to a real GraphQL backend would only change this file.
  */
-const schema = makeExecutableSchema({ typeDefs, resolvers });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const resolvers: Record<string, (variables: any) => Promise<unknown>> = {
+  searchCities: fetchCities,
+  getWeather: fetchWeather,
+};
 
 export async function request<TData>(
   document: DocumentNode,
-  variables?: Record<string, unknown>,
+  variables: Record<string, unknown> = {},
 ): Promise<TData> {
-  const result = await execute({
-    schema,
-    document,
-    variableValues: variables,
-  });
+  const operation = document.definitions[0] as OperationDefinitionNode;
+  const field = (operation.selectionSet.selections[0] as FieldNode).name.value;
 
-  if (result.errors && result.errors.length > 0) {
-    // Surface the first error message so React Query treats it as a query failure.
-    throw new Error(result.errors[0].message);
-  }
-  return result.data as TData;
+  const resolver = resolvers[field];
+  if (!resolver) throw new Error(`Unknown GraphQL field: ${field}`);
+
+  const data = await resolver(variables);
+  return { [field]: data } as TData;
 }

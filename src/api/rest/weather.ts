@@ -1,11 +1,8 @@
-import type { WeatherForecast } from "@/types";
+import type { WeatherForecast } from '@/types';
 
-/**
- * REST adapter for the Open-Meteo Forecast API.
- * Called by the GraphQL `getWeather` resolver.
- */
+// REST adapter for the Open-Meteo Forecast API. Called by the GraphQL `getWeather` resolver.
 
-const FORECAST_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
+const FORECAST_ENDPOINT = 'https://api.open-meteo.com/v1/forecast';
 
 interface ForecastApiResponse {
   timezone: string;
@@ -32,22 +29,22 @@ export async function fetchWeather(args: {
   days?: number;
 }): Promise<WeatherForecast> {
   const url = new URL(FORECAST_ENDPOINT);
-  url.searchParams.set("latitude", String(args.latitude));
-  url.searchParams.set("longitude", String(args.longitude));
-  url.searchParams.set("current_weather", "true");
+  url.searchParams.set('latitude', String(args.latitude));
+  url.searchParams.set('longitude', String(args.longitude));
+  url.searchParams.set('current_weather', 'true');
   url.searchParams.set(
-    "daily",
+    'daily',
     [
-      "temperature_2m_max",
-      "temperature_2m_min",
-      "precipitation_sum",
-      "snowfall_sum",
-      "windspeed_10m_max",
-      "weathercode",
-    ].join(","),
+      'temperature_2m_max',
+      'temperature_2m_min',
+      'precipitation_sum',
+      'snowfall_sum',
+      'windspeed_10m_max',
+      'weathercode',
+    ].join(','),
   );
-  url.searchParams.set("timezone", "auto");
-  url.searchParams.set("forecast_days", String(args.days ?? 7));
+  url.searchParams.set('timezone', 'auto');
+  url.searchParams.set('forecast_days', String(args.days ?? 7));
 
   const response = await fetch(url.toString());
   if (!response.ok) {

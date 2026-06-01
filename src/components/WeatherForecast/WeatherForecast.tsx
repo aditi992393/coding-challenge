@@ -1,25 +1,16 @@
-import { useCityStore } from "@/store/useCityStore";
-import { useWeatherForecast } from "@/features/weather/useWeatherForecast";
-import { Spinner } from "@/components/common/Spinner";
-import { EmptyState } from "@/components/common/EmptyState";
-import { Skeleton } from "@/components/common/Skeleton";
-import { getWeatherEmoji, getWeatherLabel } from "@/utils/weatherCodes";
-import styles from "./WeatherForecast.module.css";
+import { useWeatherForecast } from '@/hooks/useWeatherForecast';
+import { Spinner } from '@/components/common/Spinner';
+import { EmptyState } from '@/components/common/EmptyState';
+import { Skeleton } from '@/components/common/Skeleton';
+import { getWeatherEmoji, getWeatherLabel } from '@/utils/weatherCodes';
+import { formatDate } from '@/components/helpers';
+import type { WeatherForecastProps } from '@/components/types';
+import styles from './WeatherForecast.module.css';
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
+export function WeatherForecast({ city }: WeatherForecastProps) {
+  const { forecast, loading, error, refetch } = useWeatherForecast(city);
 
-export function WeatherForecast() {
-  const selectedCity = useCityStore((s) => s.selectedCity);
-  const { forecast, loading, error, refetch } = useWeatherForecast(selectedCity);
-
-  if (!selectedCity) {
+  if (!city) {
     return (
       <EmptyState
         icon={<span aria-hidden>🧭</span>}
@@ -31,11 +22,7 @@ export function WeatherForecast() {
 
   if (loading && !forecast) {
     return (
-      <section
-        aria-busy="true"
-        aria-live="polite"
-        className={styles.section}
-      >
+      <section aria-busy="true" aria-live="polite" className={styles.section}>
         <Skeleton className={styles.skeletonHeader} />
         <div className={styles.dailyGrid}>
           {Array.from({ length: 7 }).map((_, i) => (
@@ -51,11 +38,7 @@ export function WeatherForecast() {
       <div role="alert" className={styles.errorBox}>
         <p className={styles.errorTitle}>Couldn't load the forecast</p>
         <p className={styles.errorMessage}>{error.message}</p>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className={styles.errorButton}
-        >
+        <button type="button" onClick={() => refetch()} className={styles.errorButton}>
           Retry
         </button>
       </div>
@@ -69,11 +52,11 @@ export function WeatherForecast() {
       <header className={styles.header}>
         <div>
           <h2 id="forecast-heading" className={styles.title}>
-            {selectedCity.name}
-            {selectedCity.admin1 ? `, ${selectedCity.admin1}` : ""}
+            {city.name}
+            {city.admin1 ? `, ${city.admin1}` : ''}
           </h2>
           <p className={styles.subtitle}>
-            {selectedCity.country} · {forecast.timezone}
+            {city.country} · {forecast.timezone}
           </p>
         </div>
         <div className={styles.currentWrap}>
@@ -86,7 +69,7 @@ export function WeatherForecast() {
               {Math.round(forecast.current.temperature)}°C
             </div>
             <div className={styles.currentLabel}>
-              {getWeatherLabel(forecast.current.weatherCode)} · wind{" "}
+              {getWeatherLabel(forecast.current.weatherCode)} · wind{' '}
               {Math.round(forecast.current.windSpeed)} km/h
             </div>
           </div>
@@ -101,15 +84,14 @@ export function WeatherForecast() {
               {getWeatherEmoji(day.weatherCode)}
             </div>
             <div className={styles.dayTemp}>
-              {Math.round(day.temperatureMax)}° /{" "}
-              {Math.round(day.temperatureMin)}°
+              {Math.round(day.temperatureMax)}° / {Math.round(day.temperatureMin)}°
             </div>
             <div className={styles.dayMeta}>
               {day.precipitationSum > 0
                 ? `${day.precipitationSum.toFixed(1)} mm`
                 : day.snowfallSum > 0
                   ? `${day.snowfallSum.toFixed(1)} cm snow`
-                  : "Dry"}
+                  : 'Dry'}
             </div>
           </li>
         ))}

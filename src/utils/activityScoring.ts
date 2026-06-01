@@ -1,182 +1,185 @@
-import type {
-  ActivityKind,
-  ActivityRecommendation,
-  DailyForecast,
-  WeatherForecast,
-} from "@/types";
+import type { ActivityKind, ActivityRecommendation, DailyForecast, WeatherForecast } from '@/types';
 
 /**
- * Pure business logic for ranking activity suitability against a weather forecast.
+ * Pure scoring for ranking activities against a weather forecast.
  *
- * All functions here are deterministic and side-effect free, making them trivial
- * to unit-test. The UI layer never computes these scores directly — it only renders
- * the result of `rankActivities`.
+ * Each scorer answers 2–3 yes/no questions about the week
+ * ("is it cold?", "did it snow?") and awards fixed points for each "yes".
+ * The points add up to 100 max — no clamping, no math curves.
  */
 
 const ACTIVITY_LABELS: Record<ActivityKind, string> = {
-  skiing: "Skiing",
-  surfing: "Surfing",
-  outdoor_sightseeing: "Outdoor sightseeing",
-  indoor_sightseeing: "Indoor sightseeing",
+  skiing: 'Skiing',
+  surfing: 'Surfing',
+  outdoor_sightseeing: 'Outdoor sightseeing',
+  indoor_sightseeing: 'Indoor sightseeing',
 };
 
-const clamp = (n: number, min = 0, max = 100): number =>
-  Math.max(min, Math.min(max, n));
+const avg = (values: number[]) =>
+  values.length === 0 ? 0 : values.reduce((a, b) => a + b, 0) / values.length;
 
-/** Average a metric across the forecast horizon. */
-function average(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
+const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
+
+/** One summary object used by every scorer below. */
+function summarize(daily: DailyForecast[]) {
+  return {
+    avgMaxTemp: avg(daily.map((d) => d.temperatureMax)),
+    avgWind: avg(daily.map((d) => d.windSpeedMax)),
+    totalRain: sum(daily.map((d) => d.precipitationSum)),
+    totalSnow: sum(daily.map((d) => d.snowfallSum)),
+  };
 }
 
+type Score = { score: number; reason: string };
+const EMPTY: Score = { score: 0, reason: 'No forecast data' };
+
 /**
- * Skiing score:
- *  - Cold temperatures (≤ 0°C) are essential.
- *  - Snowfall over the period boosts the score significantly.
+ * Skiing score (max 100).
+ *
+ * Skiing needs two essentials: cold enough that snow doesn't melt, and
+ * actual snow on the ground. Both are simple yes/no checks worth 50 pts each:
+ *   • cold:  average daily high ≤ 0°C
+ *   • snow:  total weekly snowfall ≥ 5 cm
+ *
+ * Both yes → 100 (perfect alpine week).
+ * Only one → 50  (cold but no fresh snow, or vice versa).
+ * Neither  → 0   (warm and dry — go elsewhere).
  */
-export function scoreSkiing(daily: DailyForecast[]): {
-  score: number;
-  reason: string;
-} {
-  if (daily.length === 0) return { score: 0, reason: "No forecast data" };
-  const avgMax = average(daily.map((d) => d.temperatureMax));
-  const avgMin = average(daily.map((d) => d.temperatureMin));
-  const totalSnow = daily.reduce((s, d) => s + d.snowfallSum, 0);
+export function scoreSkiing(daily: DailyForecast[]): Score {
+  if (daily.length === 0) return EMPTY;
+  const { avgMaxTemp, totalSnow } = summarize(daily);
 
-  // Temperature contribution: peaks at -5°C with 70 points, drops to 0 around +7°C.
-  const tempScore = clamp(70 - (avgMax + 5) * 6, 0, 70);
-  // Snow contribution: 0..50 points, saturates around 5cm total snowfall.
-  const snowScore = clamp(totalSnow * 10, 0, 50);
-  const score = clamp(tempScore + snowScore);
+  const isCold = avgMaxTemp <= 0;
+  const hasSnow = totalSnow >= 5;
+  const score = (isCold ? 50 : 0) + (hasSnow ? 50 : 0);
 
-  const reason =
-    totalSnow > 1
-      ? `Cold temps (avg ${avgMin.toFixed(0)}°C low) with ${totalSnow.toFixed(1)} cm fresh snow.`
-      : avgMax <= 2
-        ? `Cold conditions (avg ${avgMax.toFixed(0)}°C high) but limited snowfall.`
-        : `Too warm (avg ${avgMax.toFixed(0)}°C high) for skiing.`;
+  let reason: string;
+  if (isCold && hasSnow) {
+    reason = `Cold (avg ${avgMaxTemp.toFixed(0)}°C) with ${totalSnow.toFixed(1)} cm fresh snow.`;
+  } else if (isCold) {
+    reason = `Cold conditions but limited snowfall.`;
+  } else {
+    reason = `Too warm (avg ${avgMaxTemp.toFixed(0)}°C) for skiing.`;
+  }
   return { score, reason };
 }
 
 /**
- * Surfing score:
- *  - Needs warmth (≥ 15°C) and meaningful wind (12–25 km/h ideal).
- *  - Heavy rain detracts.
+ * Surfing score (max 100).
+ *
+ * Three conditions, weighted by how surf-specific each one is:
+ *   • warm sea:   18°C ≤ avg daily high ≤ 32°C        → 35 pts
+ *   • good wind:  12 ≤ avg daily wind ≤ 30 km/h       → 40 pts (wind matters most —
+ *                                                        no wind, no waves)
+ *   • dry beach:  total weekly rainfall ≤ 10 mm       → 25 pts
+ *
+ * Wind has the highest weight because it's the single factor that turns a
+ * pleasant beach day into a surfable one. A warm, dry, windless day will
+ * score 60 — below outdoor sightseeing on the same forecast.
  */
-export function scoreSurfing(daily: DailyForecast[]): {
-  score: number;
-  reason: string;
-} {
-  if (daily.length === 0) return { score: 0, reason: "No forecast data" };
-  const avgMax = average(daily.map((d) => d.temperatureMax));
-  const avgWind = average(daily.map((d) => d.windSpeedMax));
-  const totalRain = daily.reduce((s, d) => s + d.precipitationSum, 0);
+export function scoreSurfing(daily: DailyForecast[]): Score {
+  if (daily.length === 0) return EMPTY;
+  const { avgMaxTemp, avgWind, totalRain } = summarize(daily);
 
-  // Temperature contribution: 0..60, peaks at 24°C.
-  const tempScore = clamp(60 - Math.abs(avgMax - 24) * 4, 0, 60);
-  // Wind contribution: 0..40. Below 5 km/h is dead calm; 18+ km/h is ideal;
-  // above 25 conditions become harsh and the score tapers off.
-  const windScore =
-    avgWind <= 25
-      ? clamp((avgWind - 5) * 3, 0, 40)
-      : clamp(40 - (avgWind - 25) * 3, 0, 40);
-  const rainPenalty = clamp(totalRain * 1.5, 0, 30);
-  const score = clamp(tempScore + windScore - rainPenalty);
+  const isWarm = avgMaxTemp >= 18 && avgMaxTemp <= 32;
+  const hasWind = avgWind >= 12 && avgWind <= 30;
+  const isDry = totalRain <= 10;
+  const score = (isWarm ? 35 : 0) + (hasWind ? 40 : 0) + (isDry ? 25 : 0);
 
-  const reason =
-    avgMax < 12
-      ? `Sea will be too cold (avg ${avgMax.toFixed(0)}°C).`
-      : avgWind < 10
-        ? `Calm winds (${avgWind.toFixed(0)} km/h) mean flat conditions.`
-        : `Warm (${avgMax.toFixed(0)}°C) with workable winds (${avgWind.toFixed(0)} km/h).`;
+  let reason: string;
+  if (!isWarm) {
+    reason = `Sea will be too cold (avg ${avgMaxTemp.toFixed(0)}°C).`;
+  } else if (!hasWind) {
+    reason = `Calm winds (${avgWind.toFixed(0)} km/h) mean flat conditions.`;
+  } else {
+    reason = `Warm (${avgMaxTemp.toFixed(0)}°C) with workable winds (${avgWind.toFixed(0)} km/h).`;
+  }
   return { score, reason };
 }
 
 /**
- * Outdoor sightseeing score:
- *  - Mild temperatures (15–28°C), low precipitation, light wind.
+ * Outdoor sightseeing score (max 100).
+ *
+ * Walking around a city is best when the weather is mild, dry, and calm.
+ * Three checks:
+ *   • mild temp:  15°C ≤ avg daily high ≤ 25°C   → 50 pts (most important —
+ *                                                   shivering or sweating
+ *                                                   ruins a long walk)
+ *   • dry:        total weekly rainfall ≤ 5 mm   → 30 pts
+ *   • light wind: avg daily wind ≤ 15 km/h       → 20 pts
+ *
+ * Temperature has the highest weight because it impacts comfort the most
+ * over several hours of walking. Outdoor wins on classic "spring/autumn"
+ * days; loses to indoor on rainy weeks and to surfing on warm + windy ones.
  */
-export function scoreOutdoorSightseeing(daily: DailyForecast[]): {
-  score: number;
-  reason: string;
-} {
-  if (daily.length === 0) return { score: 0, reason: "No forecast data" };
-  const avgMax = average(daily.map((d) => d.temperatureMax));
-  const totalRain = daily.reduce((s, d) => s + d.precipitationSum, 0);
-  const avgWind = average(daily.map((d) => d.windSpeedMax));
+export function scoreOutdoorSightseeing(daily: DailyForecast[]): Score {
+  if (daily.length === 0) return EMPTY;
+  const { avgMaxTemp, avgWind, totalRain } = summarize(daily);
 
-  const tempScore = clamp(70 - Math.abs(avgMax - 21) * 5, 0, 70);
-  const rainPenalty = clamp(totalRain * 3, 0, 50);
-  const windPenalty = clamp(Math.max(0, avgWind - 25) * 2, 0, 20);
-  const score = clamp(tempScore - rainPenalty - windPenalty);
+  const isMild = avgMaxTemp >= 15 && avgMaxTemp <= 25;
+  const isDry = totalRain <= 5;
+  const isCalm = avgWind <= 15;
+  const score = (isMild ? 50 : 0) + (isDry ? 30 : 0) + (isCalm ? 20 : 0);
 
-  const reason =
-    totalRain > 10
-      ? `Heavy precipitation (${totalRain.toFixed(0)} mm) over the week.`
-      : avgMax >= 15 && avgMax <= 28
-        ? `Pleasant ${avgMax.toFixed(0)}°C with limited rain.`
-        : avgMax > 28
-          ? `Quite hot (avg ${avgMax.toFixed(0)}°C) — hydrate and pace yourself.`
-          : `Cool (avg ${avgMax.toFixed(0)}°C) — dress warmly.`;
+  let reason: string;
+  if (!isDry) {
+    reason = `Heavy precipitation (${totalRain.toFixed(0)} mm) over the week.`;
+  } else if (isMild) {
+    reason = `Pleasant ${avgMaxTemp.toFixed(0)}°C with limited rain.`;
+  } else if (avgMaxTemp > 25) {
+    reason = `Quite hot (avg ${avgMaxTemp.toFixed(0)}°C) — hydrate and pace yourself.`;
+  } else {
+    reason = `Cool (avg ${avgMaxTemp.toFixed(0)}°C) — dress warmly.`;
+  }
   return { score, reason };
 }
 
 /**
- * Indoor sightseeing is the natural fallback when outdoor conditions are poor.
- * Its score moves inversely with outdoor suitability and rises with rain/extremes.
+ * Indoor sightseeing score (max 100).
+ *
+ * Indoor is the natural fallback — museums and galleries don't care about
+ * the weather. We model that by starting at a 40-pt baseline and adding
+ * boosts when conditions outside are unpleasant:
+ *   • baseline:     always applies                          → 40 pts
+ *   • wet:          total weekly rainfall ≥ 10 mm           → +35 pts
+ *   • extreme temp: avg daily high < 5°C or > 30°C          → +25 pts
+ *
+ * This means indoor wins on rainy or freezing/sweltering weeks (when no
+ * other activity scores well) and otherwise sits around 40 — slightly below
+ * an outdoor activity that actually fits the weather.
  */
-export function scoreIndoorSightseeing(daily: DailyForecast[]): {
-  score: number;
-  reason: string;
-} {
-  if (daily.length === 0) return { score: 0, reason: "No forecast data" };
-  const outdoor = scoreOutdoorSightseeing(daily);
-  const totalRain = daily.reduce((s, d) => s + d.precipitationSum, 0);
-  const avgMax = average(daily.map((d) => d.temperatureMax));
+export function scoreIndoorSightseeing(daily: DailyForecast[]): Score {
+  if (daily.length === 0) return EMPTY;
+  const { avgMaxTemp, totalRain } = summarize(daily);
 
-  // Base 40, boosted when outdoor is poor, and by rain / temperature extremes.
-  const base = 40;
-  const inverseOutdoor = clamp((100 - outdoor.score) * 0.4, 0, 40);
-  const rainBoost = clamp(totalRain * 1.2, 0, 25);
-  const extremeBoost =
-    avgMax < 0 || avgMax > 32 ? 12 : avgMax < 8 || avgMax > 28 ? 6 : 0;
-  const score = clamp(base + inverseOutdoor + rainBoost + extremeBoost);
+  const isWet = totalRain >= 10;
+  const isExtreme = avgMaxTemp < 5 || avgMaxTemp > 30;
+  const score = 40 + (isWet ? 35 : 0) + (isExtreme ? 25 : 0);
 
-  const reason =
-    totalRain > 10
-      ? `Museums and galleries shine when there's ${totalRain.toFixed(0)} mm of rain.`
-      : avgMax > 30
-        ? `Stay cool indoors during ${avgMax.toFixed(0)}°C heat.`
-        : avgMax < 5
-          ? `Warm indoor spaces are welcome in ${avgMax.toFixed(0)}°C cold.`
-          : `A solid backup option for any day.`;
+  let reason: string;
+  if (isWet) {
+    reason = `Museums and galleries shine with ${totalRain.toFixed(0)} mm of rain.`;
+  } else if (avgMaxTemp > 30) {
+    reason = `Stay cool indoors during ${avgMaxTemp.toFixed(0)}°C heat.`;
+  } else if (avgMaxTemp < 5) {
+    reason = `Warm indoor spaces are welcome in ${avgMaxTemp.toFixed(0)}°C cold.`;
+  } else {
+    reason = `A solid backup option for any day.`;
+  }
   return { score, reason };
 }
 
-const SCORERS: Record<
-  ActivityKind,
-  (d: DailyForecast[]) => { score: number; reason: string }
-> = {
+const SCORERS: Record<ActivityKind, (d: DailyForecast[]) => Score> = {
   skiing: scoreSkiing,
   surfing: scoreSurfing,
   outdoor_sightseeing: scoreOutdoorSightseeing,
   indoor_sightseeing: scoreIndoorSightseeing,
 };
 
-/**
- * Rank all activities for a given forecast, highest score first.
- */
-export function rankActivities(
-  forecast: WeatherForecast,
-): ActivityRecommendation[] {
-  const kinds: ActivityKind[] = [
-    "skiing",
-    "surfing",
-    "outdoor_sightseeing",
-    "indoor_sightseeing",
-  ];
-  return kinds
-    .map<ActivityRecommendation>((kind) => {
+/** Rank all four activities for a given forecast, highest score first. */
+export function rankActivities(forecast: WeatherForecast): ActivityRecommendation[] {
+  return (Object.keys(SCORERS) as ActivityKind[])
+    .map((kind) => {
       const { score, reason } = SCORERS[kind](forecast.daily);
       return {
         kind,
