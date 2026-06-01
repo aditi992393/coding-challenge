@@ -174,44 +174,6 @@ Each feature hook wraps `request(...)` with `useQuery`, giving us
 
 ---
 
-## 🚫 What we deliberately didn't use
-
-For every popular tool we _could_ have reached for, here's the one-line
-answer to "why didn't you?" — each choice was deliberate.
-
-| Not used                                 | Why not                                                                                                                                                                      |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **React Router / Next.js routing**       | Single-screen app — no distinct URLs or routes to manage.                                                                                                                    |
-| **Redux Toolkit / Zustand / Jotai**      | Only one piece of shared state (`selectedCity`) — `useState` in `App.tsx` is plenty.                                                                                         |
-| **Apollo Client / urql**                 | No real GraphQL server. A 30-line in-house router around `gql` documents is simpler and adds zero dependencies.                                                              |
-| **Tailwind CSS**                         | CSS Modules give scoped class names with zero runtime, no atomic-class build step, and a smaller learning curve.                                                             |
-| **Material UI / Chakra / Mantine**       | Hand-writing the WAI-ARIA combobox is a stronger signal for a senior role than installing 250 KB of pre-styled UI.                                                           |
-| **Axios**                                | Native `fetch` is now universally supported — one less dependency.                                                                                                           |
-| **`i18next` / `formatjs`**               | Single-language app per the brief; dates are already locale-aware via `Intl.DateTimeFormat`.                                                                                 |
-| **Service Worker / PWA**                 | Not in scope. React Query's session cache is the right level of caching for now.                                                                                             |
-| **Lazy loading / code splitting**        | Production bundle is ~85 KB gzipped. Splitting adds complexity for no measurable win at this size.                                                                           |
-| **Aggressive `useMemo` / `useCallback`** | Used where it documents intent and helps (e.g. `ranked` in `<ActivityRecommendations />`). Not applied to every value — that adds noise without measurable performance wins. |
-
----
-
-## 🧮 Activity scoring (in plain English)
-
-Each scorer answers **2–3 yes/no questions** about the week. Each `yes`
-adds a fixed point amount; total is at most 100. **No math curves, no
-clamping — just buckets.**
-
-| Activity                | Conditions                                                                   | Max |
-| ----------------------- | ---------------------------------------------------------------------------- | --- |
-| **Skiing**              | cold (avg high ≤ 0 °C) → 50<br>snow (≥ 5 cm/week) → 50                       | 100 |
-| **Surfing**             | warm (18–32 °C) → 35<br>wind (12–30 km/h) → 40<br>dry (≤ 10 mm) → 25         | 100 |
-| **Outdoor sightseeing** | mild (15–25 °C) → 50<br>dry (≤ 5 mm) → 30<br>calm wind (≤ 15 km/h) → 20      | 100 |
-| **Indoor sightseeing**  | baseline → 40<br>wet (≥ 10 mm) → +35<br>extreme temp (<5 °C or >30 °C) → +25 | 100 |
-
-The logic is trivial to test (7 unit tests cover all four scorers + edge
-cases) and trivial to explain in a 30-second pitch.
-
----
-
 ## ▶️ How to run the project
 
 ```bash
@@ -309,11 +271,3 @@ reliability return per hour invested and would make the project genuinely
 production-ready.
 
 ---
-
-## 🙏 Acknowledgements
-
-- Weather data from [Open-Meteo](https://open-meteo.com/) — free, no-key,
-  beautifully designed APIs.
-- Activity icons are inline emoji to avoid an asset pipeline.
-
-> Every choice in this README is defended by something concrete in the code.
